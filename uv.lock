@@ -14,7 +14,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "boto3" },
-    { name = "livekit-agents", extra = ["openai", "silero", "turn-detector"] },
+    { name = "livekit-agents", extra = ["deepgram", "openai", "silero", "turn-detector"] },
     { name = "livekit-plugins-noise-cancellation" },
     { name = "openai" },
     { name = "python-dotenv" },
@@ -31,7 +31,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp" },
     { name = "boto3" },
-    { name = "livekit-agents", extras = ["silero", "turn-detector", "openai"], specifier = "~=1.4" },
+    { name = "livekit-agents", extras = ["deepgram", "openai", "silero", "turn-detector"], specifier = "~=1.4" },
     { name = "livekit-plugins-noise-cancellation", specifier = "~=0.2" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "python-dotenv" },
@@ -562,7 +562,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -1090,6 +1090,9 @@ codecs = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
+deepgram = [
+    { name = "livekit-plugins-deepgram" },
+]
 images = [
     { name = "pillow" },
 ]
@@ -1154,6 +1157,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/72/08/93ed14e757f3bb3d22c40e11900ea2815883b7beb331fe758c8d40ea1dd0/livekit_blingfire-1.1.0-cp314-cp314t-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:20b95b2c15c4a1af4e68c1aa7d885bf295f89ee6eb5c1a1fdfa315a51795b30d", size = 170081, upload-time = "2025-12-16T00:48:31.268Z" },
     { url = "https://files.pythonhosted.org/packages/0f/6d/b2a23cafabf55561c463490b3a87e323640259ae340e6db26bb71e0fa26d/livekit_blingfire-1.1.0-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6c13ef26e5234674ac353b7cfaadeb23468e951eb07461b6b6c77f79cd5ff763", size = 176755, upload-time = "2025-12-16T00:48:32.294Z" },
     { url = "https://files.pythonhosted.org/packages/60/93/c00c175d2187160bdb2dac6b338203d51396307dfce23f03defb3b5e5572/livekit_blingfire-1.1.0-cp314-cp314t-win_amd64.whl", hash = "sha256:c91b2315e0497383384304d33554d70b8a63dec5ad96cd43437c67f4172077cf", size = 141072, upload-time = "2025-12-16T00:48:33.423Z" },
+]
+
+[[package]]
+name = "livekit-plugins-deepgram"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "livekit-agents", extra = ["codecs"] },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3e/76/604a856364c93d9a1b8121a28ff129d97707d650a3b7fbac6c48dee5de17/livekit_plugins_deepgram-1.5.0.tar.gz", hash = "sha256:5e6e9d2876c010e31bdf0b2a8c389dcd29a79bff266cd2e11f56acb17f8ec1af", size = 16872, upload-time = "2026-03-19T17:00:47.274Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/26/dbf9dae9fbc4c32e3617c7ba39a95e7e4985ba74dd7919d028009ef00ca7/livekit_plugins_deepgram-1.5.0-py3-none-any.whl", hash = "sha256:27ed8e0b492598a8a9c0ed07f133203ef2e184d9d63af45921b0cbbf96d6ff05", size = 21909, upload-time = "2026-03-19T17:00:46.045Z" },
 ]
 
 [[package]]
