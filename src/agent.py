@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from typing import Optional
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -17,12 +16,10 @@ load_dotenv(".env.local")
 
 logger = logging.getLogger("loan-agent")
 
-OBSERVER_PREFIX = "observer_"
-PARTICIPANT_WAIT_TIMEOUT = 120.0
-
-COLD_CALL_MAX_SECONDS = 180
-_MAX_DURATION_STAGES = {"cold_call"}
-
+MAX_DURATION = {
+    "cold_call": 180,
+    "offer_presentation": 300,
+}
 
 server = AgentServer()
 
@@ -36,49 +33,47 @@ server.setup_fnc = prewarm
 
 @server.rtc_session(agent_name="loan-lifecycle-agent")
 async def entrypoint(ctx: JobContext) -> None:
-    ctx.log_context_fields = {"room": ctx.room.name}
-
     await ctx.connect()
     logger.info(f"Connected to room: {ctx.room.name}")
 
     # --- 1. Read metadata ---
     metadata = json.loads(ctx.room.metadata or "{}")
     user_id = metadata.get("user_id")
-    stage_override = metadata.get("current_stage")
-
     if not user_id:
         logger.error("No user_id in room metadata.")
         return
 
-    # --- 2. Build user state directly from room metadata (no DB fetch) ---
-    backend = BackendClient()
+    # --- 2. Build user state from room metadata ---
     user_state = UserState(
         user_id=user_id,
-        current_stage=stage_override or metadata.get("current_stage", "cold_call"),
+        current_stage=metadata.get("current_stage", "cold_call"),
         name=metadata.get("name", ""),
         phone=metadata.get("phone", ""),
         ref_source=metadata.get("ref_source", "other"),
         loan_amount_interest=metadata.get("loan_amount_interest", 150000),
         city=metadata.get("city", ""),
         cold_call_attempts=metadata.get("cold_call_attempts", 0),
+        borrower_need=metadata.get("borrower_need"),
+        borrower_mood=metadata.get("borrower_mood"),
+        loan_terms=metadata.get("loan_terms") or {},
     )
 
-    active_stage = user_state.current_stage
-    logger.info(f"Stage '{active_stage}' | user={user_id}")
+    stage = user_state.current_stage
+    logger.info(f"Stage '{stage}' | user={user_id}")
 
     # --- 3. Resolve agent ---
-    agent = stage_to_agent(active_stage, user_state, backend)
+    agent = stage_to_agent(stage, user_state, BackendClient())
     if agent is None:
-        logger.error(f"No agent for stage '{active_stage}' — backend-only stage?")
+        logger.error(f"No agent for stage '{stage}'")
         return
 
-    # --- 4. Wait for participant ---
-    active_participant = await _wait_for_participant(ctx)
-    if not active_participant:
+    # --- 4. Wait for SIP participant ---
+    participant = await _wait_for_participant(ctx)
+    if not participant:
         logger.warning("No participant joined.")
         return
 
-    # --- 5. Build session ---
+    # --- 5. Build and start session ---
     session = AgentSession(
         stt=inference.STT(model="deepgram/nova-3-general", language="multi"),
         llm=inference.LLM(model="openai/gpt-4.1-mini"),
@@ -96,73 +91,67 @@ async def entrypoint(ctx: JobContext) -> None:
     session.on("metrics_collected")(
         lambda ev: (metrics.log_metrics(ev.metrics), usage_collector.collect(ev.metrics))
     )
-    session.on("close")(
-        lambda ev: logger.info(f"Session closed. Error: {ev.error or 'None'}")
-    )
 
     await session.start(
         agent=agent,
         room=ctx.room,
         room_input_options=RoomInputOptions(
-            participant_identity=active_participant.identity,
+            participant_identity=participant.identity,
             audio_enabled=True,
             noise_cancellation=noise_cancellation.BVC(),
-            text_enabled=True,
-            close_on_disconnect=False,
         ),
     )
 
-    # --- 6. Max duration enforcement for timed stages ---
-    timeout_task: Optional[asyncio.Task] = None
-    if active_stage in _MAX_DURATION_STAGES:
-        timeout_task = asyncio.create_task(
-            _enforce_max_duration(session, COLD_CALL_MAX_SECONDS)
-        )
+    # --- 6. Max duration safety net ---
+    max_seconds = MAX_DURATION.get(stage)
+    if max_seconds:
+        asyncio.create_task(_enforce_max_duration(session, ctx.room.name, max_seconds))
 
-    async def _on_shutdown() -> None:
-        if timeout_task and not timeout_task.done():
-            timeout_task.cancel()
-        logger.info(f"Usage: {usage_collector.get_summary()}")
-
-    ctx.add_shutdown_callback(_on_shutdown)
-    logger.info(f"Session live | user={user_state.name} | stage={active_stage}")
+    ctx.add_shutdown_callback(
+        lambda: logger.info(f"Usage: {usage_collector.get_summary()}")
+    )
+    logger.info(f"Session live | user={user_state.name} | stage={stage}")
 
 
-async def _enforce_max_duration(session: AgentSession, seconds: int) -> None:
-    """
-    Hard cap on call duration. After `seconds`, say a polite closing and let the
-    call drop naturally — we don't force-close the room from the agent side.
-    """
+async def _enforce_max_duration(session: AgentSession, room_name: str, seconds: int) -> None:
+    """Hard cap on call duration. Says goodbye, then deletes the room."""
     await asyncio.sleep(seconds)
-    logger.info(f"Max call duration ({seconds}s) reached — closing gracefully")
+    logger.info(f"Max call duration ({seconds}s) reached")
     try:
-        await session.say(
-            "Theek hai — main baad mein call karti hoon. Dhanyawaad!",
-            allow_interruptions=False,
-        )
+        await session.say("Theek hai — main baad mein call karti hoon. Dhanyawaad!", allow_interruptions=False)
     except Exception:
-        pass  # session may already be closing
+        pass
+
+    from livekit import api
+    import os
+    lkapi = api.LiveKitAPI(
+        url=os.getenv("LIVEKIT_URL", ""),
+        api_key=os.getenv("LIVEKIT_API_KEY", ""),
+        api_secret=os.getenv("LIVEKIT_API_SECRET", ""),
+    )
+    try:
+        await lkapi.room.delete_room(api.DeleteRoomRequest(room=room_name))
+    except Exception:
+        pass
+    finally:
+        await lkapi.aclose()
 
 
-async def _wait_for_participant(ctx: JobContext) -> Optional[rtc.RemoteParticipant]:
-    def is_active(p: rtc.RemoteParticipant) -> bool:
-        return not (p.identity or "").startswith(OBSERVER_PREFIX)
-
+async def _wait_for_participant(ctx: JobContext) -> rtc.RemoteParticipant | None:
+    """Wait for the SIP participant (customer) to join the room."""
     for p in ctx.room.remote_participants.values():
-        if is_active(p):
-            return p
+        return p
 
     event = asyncio.Event()
     result: list[rtc.RemoteParticipant] = []
 
     def on_joined(p: rtc.RemoteParticipant) -> None:
-        if is_active(p):
-            result.append(p)
-            event.set()
+        result.append(p)
+        event.set()
 
     ctx.room.on("participant_connected", on_joined)
     try:
-        await asyncio.wait_for(event.wait(), timeout=PARTICIPANT_WAIT_TIMEOUT)
+        await asyncio.wait_for(event.wait(), timeout=120.0)
         return result[0] if result else None
     except asyncio.TimeoutError:
         logger.warning("Timed out waiting for participant.")

@@ -140,8 +140,8 @@ class ColdCallAgent(LoanStageAgent):
             outcome="hot_lead",
             borrower_need=borrower_need,
         )
-        self._end_call()
-        return f"Bahut achha {self.user_state.name}! Main aapko {follow_up_time} pe call karungi details ke saath. Tab tak apna khayal rakhen!"
+        self._end_call(f"Bahut achha {self.user_state.name}! Main aapko {follow_up_time} pe call karungi details ke saath. Tab tak apna khayal rakhen!")
+        return ""
 
     @function_tool
     async def mark_callback(
@@ -164,8 +164,8 @@ class ColdCallAgent(LoanStageAgent):
             callback_time=callback_time,
             borrower_need=borrower_need or None,
         )
-        self._end_call()
-        return f"Bilkul {self.user_state.name} — main aapko {callback_time} pe call karungi. Shukriya!"
+        self._end_call(f"Bilkul {self.user_state.name} — main aapko {callback_time} pe call karungi. Shukriya!")
+        return ""
 
     @function_tool
     async def mark_not_interested(self, context: RunContext) -> str:  # noqa: ARG002
@@ -177,8 +177,8 @@ class ColdCallAgent(LoanStageAgent):
             user_id=self.user_state.user_id,
             outcome="not_interested",
         )
-        self._end_call()
-        return f"Theek hai {self.user_state.name} — koi baat nahi. Apna khayal rakhen!"
+        self._end_call(f"Theek hai {self.user_state.name} — koi baat nahi. Apna khayal rakhen!")
+        return ""
 
     @function_tool
     async def mark_no_response(self, context: RunContext) -> str:  # noqa: ARG002

@@ -12,9 +12,11 @@ def stage_to_agent(
     backend: BackendClient,
 ) -> Optional[object]:
     from stages.s01_cold_call import ColdCallAgent
+    from stages.s02_offer_presentation import OfferPresentationAgent
 
     registry: dict[str, type] = {
         "cold_call": ColdCallAgent,
+        "offer_presentation": OfferPresentationAgent,
     }
 
     agent_class = registry.get(stage_id)
