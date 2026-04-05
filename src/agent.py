@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, TurnHandlingOptions, cli, inference, metrics
 from livekit.agents.voice.room_io import RoomInputOptions
-from livekit.plugins import noise_cancellation, openai, silero
+from livekit.plugins import noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from backend import BackendClient, UserState
@@ -83,8 +83,8 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=inference.STT(model="deepgram/nova-3-general", language="multi"),
         llm=inference.LLM(model="openai/gpt-4.1-mini"),
         tts=inference.TTS(
-            model="elevenlabs/eleven_flash_v2_5",
-            voice="EXAVITQu4vr4xnSDxMaL",
+            model="cartesia/sonic-3",
+            voice="faf0731e-dfb9-4cfc-8119-259a79b27e12",
             language="hi",
         ),
         turn_handling=TurnHandlingOptions(turn_detection=MultilingualModel()),

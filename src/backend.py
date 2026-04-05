@@ -153,6 +153,18 @@ class BackendClient:
         except Exception as e:
             logger.error(f"save_call_summary error: {e}", exc_info=True)
 
+    async def end_call(self, room_name: str, reason: str = "") -> None:
+        """Signal backend to end the call and delete the LiveKit room."""
+        try:
+            http = await _get_http()
+            await http.post(
+                f"{self.api_url}/calls/end",
+                json={"room_name": room_name, "reason": reason},
+                timeout=aiohttp.ClientTimeout(total=5),
+            )
+        except Exception as e:
+            logger.error(f"end_call error: {e}", exc_info=True)
+
     async def flag_human_handoff(self, user_id: str, reason: str) -> None:
         """Flag user for human agent handoff."""
         try:

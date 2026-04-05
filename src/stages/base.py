@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import os
 from typing import TYPE_CHECKING
 
+from livekit import api
 from livekit.agents import Agent, RunContext, function_tool
 
 from backend import BackendClient, UserState
@@ -78,11 +80,35 @@ class LoanStageAgent(Agent):
     def _end_call(self) -> None:
         """
         Schedule graceful call teardown after the current TTS response finishes.
-        Deletes the room, which disconnects the SIP caller.
+        Drains speech first, then deletes the room to disconnect the SIP caller.
         Called from outcome tools — fire-and-forget via create_task.
         """
         async def _shutdown():
-            await self.session.shutdown(delete_room=True)
+            # Capture room name before session state is cleaned up
+            room_name = self.session.room_io.room.name
+
+            # Wait for session to fully close (drain=True lets TTS finish first)
+            close_event = asyncio.Event()
+            self.session.on("close")(lambda _: close_event.set())
+            self.session.shutdown(drain=True)
+            try:
+                await asyncio.wait_for(close_event.wait(), timeout=15.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"Session close timed out for room {room_name}")
+
+            # Now delete the room — sends SIP BYE to Twilio, hangs up customer
+            lkapi = api.LiveKitAPI(
+                url=os.getenv("LIVEKIT_URL", ""),
+                api_key=os.getenv("LIVEKIT_API_KEY", ""),
+                api_secret=os.getenv("LIVEKIT_API_SECRET", ""),
+            )
+            try:
+                await lkapi.room.delete_room(api.DeleteRoomRequest(room=room_name))
+                logger.info(f"Room deleted: {room_name}")
+            except Exception as e:
+                logger.error(f"Failed to delete room {room_name}: {e}")
+            finally:
+                await lkapi.aclose()
 
         asyncio.create_task(_shutdown())
 
