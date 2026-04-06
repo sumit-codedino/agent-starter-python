@@ -107,9 +107,10 @@ async def entrypoint(ctx: JobContext) -> None:
     if max_seconds:
         asyncio.create_task(_enforce_max_duration(session, ctx.room.name, max_seconds))
 
-    ctx.add_shutdown_callback(
-        lambda: logger.info(f"Usage: {usage_collector.get_summary()}")
-    )
+    async def _on_shutdown():
+        logger.info(f"Usage: {usage_collector.get_summary()}")
+
+    ctx.add_shutdown_callback(_on_shutdown)
     logger.info(f"Session live | user={user_state.name} | stage={stage}")
 
 

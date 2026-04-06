@@ -46,6 +46,7 @@ class BackendClient:
         user_id: str,
         outcome: str,
         callback_time: Optional[str] = None,
+        follow_up_time: Optional[str] = None,
         borrower_need: Optional[str] = None,
         rejection_reason: Optional[str] = None,
         objection_detail: Optional[str] = None,
@@ -59,6 +60,7 @@ class BackendClient:
                 json={
                     "outcome": outcome,
                     "callback_time": callback_time,
+                    "follow_up_time": follow_up_time,
                     "borrower_need": borrower_need,
                     "rejection_reason": rejection_reason,
                     "objection_detail": objection_detail,

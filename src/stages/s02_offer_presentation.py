@@ -39,10 +39,6 @@ def _build_instructions(user_state: UserState) -> str:
     amount = _indian_amount(user_state.loan_amount_interest)
     t = user_state.loan_terms
 
-    print("DEBUG: user state in instructions builder:", user_state)
-
-    print("DEBUG: loan terms in instructions builder:", t)
-
     roi = t.get("roi_annual_pct") if "roi_annual_pct" in t else "N/A"
     tenure = t.get("tenure_months") if "tenure_months" in t else "N/A"
     emi = _indian_amount(t["emi_amount"]) if "emi_amount" in t else "N/A"

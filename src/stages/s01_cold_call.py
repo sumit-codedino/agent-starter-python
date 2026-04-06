@@ -139,6 +139,7 @@ class ColdCallAgent(LoanStageAgent):
             user_id=self.user_state.user_id,
             outcome="hot_lead",
             borrower_need=borrower_need,
+            follow_up_time=follow_up_time,
         )
         self._end_call(f"Bahut achha {self.user_state.name}! Main aapko {follow_up_time} pe call karungi details ke saath. Tab tak apna khayal rakhen!")
         return ""
