@@ -41,6 +41,30 @@ class BackendClient:
     def __init__(self) -> None:
         self.api_url = os.getenv("API_URL", "")
 
+    async def get_prompt_data(self, stage_id: str) -> Optional[dict]:
+        """
+        Fetch the prompt data (template + first_message) for a stage from the backend.
+        Returns None on error or if no record is stored — callers should fall back
+        to hardcoded defaults in that case.
+        """
+        try:
+            http = await _get_http()
+            async with http.get(
+                f"{self.api_url}/prompts",
+                params={"stage_id": stage_id},
+                timeout=aiohttp.ClientTimeout(total=3),
+            ) as resp:
+                if resp.status == 404:
+                    logger.info(f"No DynamoDB prompt for stage '{stage_id}', using hardcoded defaults")
+                    return None
+                if resp.status != 200:
+                    logger.warning(f"get_prompt_data HTTP {resp.status} for '{stage_id}'")
+                    return None
+                return await resp.json()
+        except Exception as e:
+            logger.error(f"get_prompt_data error for '{stage_id}': {e}")
+            return None
+
     async def report_call_outcome(
         self,
         user_id: str,

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from livekit.agents import RunContext, function_tool
 
 from backend import BackendClient, UserState
@@ -32,9 +34,23 @@ def _indian_amount(n: int) -> str:
     return " ".join(parts) if parts else "0"
 
 
-def _build_instructions(user_state: UserState) -> str:
+class _SafeDict(dict):
+    """Allow .format_map() on templates that have unknown placeholders — leave them as-is."""
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def _build_instructions(user_state: UserState, template: Optional[str] = None) -> str:
     ref_label = _REF_SOURCE_LABELS.get(user_state.ref_source, "ek platform")
     amount = _indian_amount(user_state.loan_amount_interest)
+
+    if template is not None:
+        return template.format_map(_SafeDict(
+            name=user_state.name,
+            city=user_state.city,
+            amount=amount,
+            ref_label=ref_label,
+        ))
 
     return f"""
 Aap Priya hain, ZipCredit (RBI-registered NBFC) ki ek confident loan officer. Aap {user_state.name} ko call kar rahi hain jo {user_state.city} mein rehte hain aur {ref_label} ke zariye {amount} ke loan mein interest dikhaya tha.
@@ -106,16 +122,24 @@ class ColdCallAgent(LoanStageAgent):
     Outcomes: hot_lead | callback | not_interested | no_response.
     """
 
-    def __init__(self, user_state: UserState, backend: BackendClient) -> None:
+    def __init__(
+        self,
+        user_state: UserState,
+        backend: BackendClient,
+        template: Optional[str] = None,
+        first_message: Optional[str] = None,
+    ) -> None:
         super().__init__(
-            instructions=_build_instructions(user_state),
+            instructions=_build_instructions(user_state, template),
             user_state=user_state,
             backend=backend,
             stage_id=STAGE_ID,
         )
+        self._first_message = first_message
 
     async def on_enter(self) -> None:
-        first_msg = FIRST_MESSAGE.format(name=self.user_state.name)
+        tpl = self._first_message or FIRST_MESSAGE
+        first_msg = tpl.format_map(_SafeDict(name=self.user_state.name))
         await self.session.say(first_msg, allow_interruptions=True)
 
     # --- Outcome tools ---

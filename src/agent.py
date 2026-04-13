@@ -62,7 +62,14 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info(f"Stage '{stage}' | user={user_id}")
 
     # --- 3. Resolve agent ---
-    agent = stage_to_agent(stage, user_state, BackendClient())
+    backend = BackendClient()
+    prompt_data = await backend.get_prompt_data(stage)
+    template = prompt_data.get("template") or None if prompt_data else None
+    first_message = prompt_data.get("first_message") or None if prompt_data else None
+    logger.info(f"Using template: {template}")
+    logger.info(f"Using first_message: {first_message}")
+
+    agent = stage_to_agent(stage, user_state, backend, template=template, first_message=first_message)
     if agent is None:
         logger.error(f"No agent for stage '{stage}'")
         return

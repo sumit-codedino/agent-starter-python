@@ -10,6 +10,8 @@ def stage_to_agent(
     stage_id: str,
     user_state: UserState,
     backend: BackendClient,
+    template: Optional[str] = None,
+    first_message: Optional[str] = None,
 ) -> Optional[object]:
     from stages.s01_cold_call import ColdCallAgent
     from stages.s02_offer_presentation import OfferPresentationAgent
@@ -24,4 +26,4 @@ def stage_to_agent(
         logger.warning(f"No agent registered for stage: '{stage_id}'")
         return None
 
-    return agent_class(user_state=user_state, backend=backend)
+    return agent_class(user_state=user_state, backend=backend, template=template, first_message=first_message)

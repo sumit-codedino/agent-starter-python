@@ -1,3 +1,5 @@
+from typing import Optional
+
 from livekit.agents import RunContext, function_tool
 
 from backend import BackendClient, UserState
@@ -34,20 +36,48 @@ def _indian_amount(n: int) -> str:
     return " ".join(parts) if parts else "0"
 
 
-def _build_instructions(user_state: UserState) -> str:
+class _SafeDict(dict):
+    """Allow .format_map() on templates that have unknown placeholders — leave them as-is."""
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def _build_context(user_state: UserState) -> dict:
     ref_label = _REF_SOURCE_LABELS.get(user_state.ref_source, "ek platform")
     amount = _indian_amount(user_state.loan_amount_interest)
     t = user_state.loan_terms
+    return {
+        "name": user_state.name,
+        "city": user_state.city,
+        "ref_label": ref_label,
+        "amount": amount,
+        "roi": t.get("roi_annual_pct") if "roi_annual_pct" in t else "N/A",
+        "tenure": t.get("tenure_months") if "tenure_months" in t else "N/A",
+        "emi": _indian_amount(t["emi_amount"]) if "emi_amount" in t else "N/A",
+        "total_repayable": _indian_amount(t["total_repayable"]) if "total_repayable" in t else "N/A",
+        "processing_fee": _indian_amount(t["processing_fee"]) if "processing_fee" in t else "N/A",
+        "net_disbursement": _indian_amount(t["net_disbursement"]) if "net_disbursement" in t else "N/A",
+        "need_text": user_state.borrower_need or "unki zaroorat",
+        "mood_text": user_state.borrower_mood or "neutral",
+    }
 
-    roi = t.get("roi_annual_pct") if "roi_annual_pct" in t else "N/A"
-    tenure = t.get("tenure_months") if "tenure_months" in t else "N/A"
-    emi = _indian_amount(t["emi_amount"]) if "emi_amount" in t else "N/A"
-    total_repayable = _indian_amount(t["total_repayable"]) if "total_repayable" in t else "N/A"
-    processing_fee = _indian_amount(t["processing_fee"]) if "processing_fee" in t else "N/A"
-    net_disbursement = _indian_amount(t["net_disbursement"]) if "net_disbursement" in t else "N/A"
 
-    need_text = user_state.borrower_need or "unki zaroorat"
-    mood_text = user_state.borrower_mood or "neutral"
+def _build_instructions(user_state: UserState, template: Optional[str] = None) -> str:
+    ctx = _build_context(user_state)
+
+    if template is not None:
+        return template.format_map(_SafeDict(**ctx))
+
+    ref_label = ctx["ref_label"]
+    amount = ctx["amount"]
+    roi = ctx["roi"]
+    tenure = ctx["tenure"]
+    emi = ctx["emi"]
+    total_repayable = ctx["total_repayable"]
+    processing_fee = ctx["processing_fee"]
+    net_disbursement = ctx["net_disbursement"]
+    need_text = ctx["need_text"]
+    mood_text = ctx["mood_text"]
 
     return f"""
 Aap Priya hain, ZipCredit (RBI-registered NBFC) ki loan officer. Yeh follow-up call hai — {user_state.name} se pehle baat ho chuki hai aur unhone loan details sunne ke liye agree kiya tha. Trust already established hai — dobara introduction ya legitimacy pitch mat karo.
@@ -145,22 +175,25 @@ class OfferPresentationAgent(LoanStageAgent):
     Outcomes: offer_accepted | callback | rejected.
     """
 
-    def __init__(self, user_state: UserState, backend: BackendClient) -> None:
+    def __init__(
+        self,
+        user_state: UserState,
+        backend: BackendClient,
+        template: Optional[str] = None,
+        first_message: Optional[str] = None,
+    ) -> None:
         super().__init__(
-            instructions=_build_instructions(user_state),
+            instructions=_build_instructions(user_state, template),
             user_state=user_state,
             backend=backend,
             stage_id=STAGE_ID,
         )
+        self._first_message = first_message
 
     async def on_enter(self) -> None:
-        need_line = ""
-        if self.user_state.borrower_need:
-            need_line = f"{self.user_state.borrower_need} ke liye — "
-        first_msg = FIRST_MESSAGE.format(
-            name=self.user_state.name,
-            need_line=need_line,
-        )
+        need_line = f"{self.user_state.borrower_need} ke liye — " if self.user_state.borrower_need else ""
+        tpl = self._first_message or FIRST_MESSAGE
+        first_msg = tpl.format_map(_SafeDict(name=self.user_state.name, need_line=need_line))
         await self.session.say(first_msg, allow_interruptions=True)
 
     # --- Outcome tools ---
