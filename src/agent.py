@@ -63,6 +63,8 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # --- 3. Resolve agent ---
     backend = BackendClient()
+    backend.conversation_id = metadata.get("conversation_id", "")
+    backend.stage = stage
     prompt_data = await backend.get_prompt_data(stage)
     template = prompt_data.get("template") or None if prompt_data else None
     first_message = prompt_data.get("first_message") or None if prompt_data else None

@@ -150,20 +150,23 @@ class ColdCallAgent(LoanStageAgent):
         context: RunContext,  # noqa: ARG002
         borrower_need: str,
         follow_up_time: str,
+        borrower_mood: str,
     ) -> str:
         """
         Borrower is interested and has confirmed a follow-up time. This is a hot lead.
-        Only call this after you have both borrower_need AND a specific follow_up_time.
+        Only call this after you have borrower_need, a specific follow_up_time, AND assessed the borrower's mood.
 
         Args:
             borrower_need: What the borrower said the money is for (e.g. "bike repair", "medical").
-            follow_up_time: The specific time confirmed for the next call (e.g. "aaj shaam 4 baje").
+            follow_up_time: The confirmed follow-up time converted to 24-hour format (e.g. "16:00", "09:30"). Convert spoken Hindi like "shaam 4 baje" to "16:00", "subah 9 baje" to "09:00".
+            borrower_mood: Your assessment of the borrower's tone during the call. One of: cooperative, neutral, suspicious, hostile.
         """
         await self.backend.report_call_outcome(
             user_id=self.user_state.user_id,
             outcome="hot_lead",
             borrower_need=borrower_need,
             follow_up_time=follow_up_time,
+            borrower_mood=borrower_mood,
         )
         self._end_call(f"Bahut achha {self.user_state.name}! Main aapko {follow_up_time} pe call karungi details ke saath. Tab tak apna khayal rakhen!")
         return ""
@@ -180,7 +183,7 @@ class ColdCallAgent(LoanStageAgent):
         Only call this after getting an exact time — never accept vague answers.
 
         Args:
-            callback_time: Specific callback time given by borrower (e.g. "aaj shaam 6 baje").
+            callback_time: The callback time converted to 24-hour format (e.g. "16:00", "09:30"). Convert spoken Hindi like "shaam 6 baje" to "18:00", "dopahar 2 baje" to "14:00".
             borrower_need: What the borrower mentioned needing money for, if shared.
         """
         await self.backend.report_call_outcome(

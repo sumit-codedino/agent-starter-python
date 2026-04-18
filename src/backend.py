@@ -40,6 +40,8 @@ class BackendClient:
 
     def __init__(self) -> None:
         self.api_url = os.getenv("API_URL", "")
+        self.conversation_id: str = ""
+        self.stage: str = ""
 
     async def get_prompt_data(self, stage_id: str) -> Optional[dict]:
         """
@@ -72,6 +74,7 @@ class BackendClient:
         callback_time: Optional[str] = None,
         follow_up_time: Optional[str] = None,
         borrower_need: Optional[str] = None,
+        borrower_mood: Optional[str] = None,
         rejection_reason: Optional[str] = None,
         objection_detail: Optional[str] = None,
         any_objection_raised: bool = False,
@@ -82,10 +85,13 @@ class BackendClient:
             await http.post(
                 f"{self.api_url}/users/{user_id}/call-outcome",
                 json={
+                    "conversation_id": self.conversation_id,
+                    "stage": self.stage,
                     "outcome": outcome,
                     "callback_time": callback_time,
                     "follow_up_time": follow_up_time,
                     "borrower_need": borrower_need,
+                    "borrower_mood": borrower_mood,
                     "rejection_reason": rejection_reason,
                     "objection_detail": objection_detail,
                     "any_objection_raised": any_objection_raised,

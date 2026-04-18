@@ -226,7 +226,7 @@ class OfferPresentationAgent(LoanStageAgent):
         Never accept "baad mein" without a date.
 
         Args:
-            callback_time: Specific date/time borrower agreed to (e.g. "kal shaam 5 baje", "Thursday").
+            callback_time: The callback time converted to 24-hour format (e.g. "16:00", "09:30"). Convert spoken Hindi like "shaam 5 baje" to "17:00", "dopahar 2 baje" to "14:00".
         """
         await self.backend.report_call_outcome(
             user_id=self.user_state.user_id,
