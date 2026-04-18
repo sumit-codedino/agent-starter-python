@@ -72,12 +72,14 @@ class BackendClient:
         user_id: str,
         outcome: str,
         callback_time: Optional[str] = None,
+        callback_date: Optional[str] = None,
         follow_up_time: Optional[str] = None,
         borrower_need: Optional[str] = None,
         borrower_mood: Optional[str] = None,
         rejection_reason: Optional[str] = None,
         objection_detail: Optional[str] = None,
         any_objection_raised: bool = False,
+        stage_03_context_note: Optional[str] = None,
     ) -> None:
         """Report the outcome of any stage call to the backend."""
         try:
@@ -89,12 +91,14 @@ class BackendClient:
                     "stage": self.stage,
                     "outcome": outcome,
                     "callback_time": callback_time,
+                    "callback_date": callback_date,
                     "follow_up_time": follow_up_time,
                     "borrower_need": borrower_need,
                     "borrower_mood": borrower_mood,
                     "rejection_reason": rejection_reason,
                     "objection_detail": objection_detail,
                     "any_objection_raised": any_objection_raised,
+                    "stage_03_context_note": stage_03_context_note,
                 },
                 timeout=aiohttp.ClientTimeout(total=5),
             )

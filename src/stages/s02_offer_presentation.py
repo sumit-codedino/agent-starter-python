@@ -62,11 +62,8 @@ def _build_context(user_state: UserState) -> dict:
     }
 
 
-def _build_instructions(user_state: UserState, template: Optional[str] = None) -> str:
+def _build_instructions(user_state: UserState) -> str:
     ctx = _build_context(user_state)
-
-    if template is not None:
-        return template.format_map(_SafeDict(**ctx))
 
     ref_label = ctx["ref_label"]
     amount = ctx["amount"]
@@ -119,7 +116,7 @@ Step 2 — Total repayable batao:
   "Total repayment {total_repayable} hoga — koi hidden charges nahi hain."
 
 Step 3 — Processing fee disclose karo:
-  "Processing fee {processing_fee} plus GST hai — toh disbursement {net_disbursement} milega."
+  "{processing_fee} plus GST processing fee hai — toh disbursement {net_disbursement} milega."
   "Yeh sab mail pe confirm aayega."
 
 Step 4 — Questions ke liye floor open karo:
@@ -148,14 +145,18 @@ OBJECTION HANDLING:
 
 "Mujhe laga free hoga":
   "Haan, processing fee lagti hai — lekin yeh ek baar ki hai. Sab kuch transparent hai — mail pe bhi aayega."
+  Move on immediately. Do not apologise.
 
 Existing loan mention:
   "Aapka existing EMI obligation underwriting mein dekha jayega — abhi ke liye hum aage badh sakte hain."
 
+Borrower is distracted or busy:
+  Respect it immediately. Do not pitch. "Koi baat nahi — kab free rahenge? Main {{time}} pe call karungi." Get a specific time.
+
 ---
 
 RULES:
-- Hamesha Hindi mein bolo
+- Hamesha Hindi/Hinglish mein bolo — full English sentences nahi
 - EMI, rate of interest, CIBIL, disbursement, processing fee — yeh English terms use karo, Hindi equivalents nahi
 - "Bahut accha offer hai" ya urgency language kabhi mat bolo
 - Agar kuch nahi pata toh guess mat karo — "confirm karke batati hoon" bolo
@@ -179,21 +180,21 @@ class OfferPresentationAgent(LoanStageAgent):
         self,
         user_state: UserState,
         backend: BackendClient,
-        template: Optional[str] = None,
-        first_message: Optional[str] = None,
+        template: Optional[str] = None,  # noqa: ARG002 — disabled for now
+        first_message: Optional[str] = None,  # noqa: ARG002 — disabled for now
     ) -> None:
+        # Dynamic prompt disabled for Stage 02 — always use hardcoded default
         super().__init__(
-            instructions=_build_instructions(user_state, template),
+            instructions=_build_instructions(user_state),
             user_state=user_state,
             backend=backend,
             stage_id=STAGE_ID,
         )
-        self._first_message = first_message
+        self._first_message = None  # always use hardcoded FIRST_MESSAGE
 
     async def on_enter(self) -> None:
         need_line = f"{self.user_state.borrower_need} ke liye — " if self.user_state.borrower_need else ""
-        tpl = self._first_message or FIRST_MESSAGE
-        first_msg = tpl.format_map(_SafeDict(name=self.user_state.name, need_line=need_line))
+        first_msg = FIRST_MESSAGE.format_map(_SafeDict(name=self.user_state.name, need_line=need_line))
         await self.session.say(first_msg, allow_interruptions=True)
 
     # --- Outcome tools ---
@@ -202,15 +203,19 @@ class OfferPresentationAgent(LoanStageAgent):
     async def mark_offer_accepted(
         self,
         context: RunContext,  # noqa: ARG002
+        stage_03_context_note: str,
     ) -> str:
         """
         Borrower agreed to proceed to documentation/KYC stage.
         Call this when borrower says "haan", "aage badho", "kar do", "theek hai process karo".
+
+        Args:
+            stage_03_context_note: Short note for the next agent summarizing this call — e.g. "accepted after rate concern, mood cooperative" or "straightforward acceptance, no objections".
         """
         await self.backend.report_call_outcome(
             user_id=self.user_state.user_id,
             outcome="offer_accepted",
-            borrower_need=self.user_state.borrower_need,
+            stage_03_context_note=stage_03_context_note,
         )
         self._end_call(f"Bahut achha {self.user_state.name} ji! Main aapko documentation ke liye call karungi — sab kuch digital hoga. Shukriya!")
         return ""
@@ -219,21 +224,27 @@ class OfferPresentationAgent(LoanStageAgent):
     async def mark_callback(
         self,
         context: RunContext,  # noqa: ARG002
-        callback_time: str,
+        callback_date: str,
+        stage_03_context_note: str,
+        objection_detail: str = "",
     ) -> str:
         """
-        Borrower wants time to think. Get a specific date/time before calling this.
+        Borrower wants time to think. Get a specific date before calling this.
         Never accept "baad mein" without a date.
 
         Args:
-            callback_time: The callback time converted to 24-hour format (e.g. "16:00", "09:30"). Convert spoken Hindi like "shaam 5 baje" to "17:00", "dopahar 2 baje" to "14:00".
+            callback_date: The callback date in ISO format (e.g. "2026-04-20"). Convert spoken Hindi like "kal" to tomorrow's date, "Thursday" to the next Thursday's date.
+            stage_03_context_note: Short note for the next agent — e.g. "needs to discuss with spouse, seemed positive" or "concerned about EMI, wants to check budget".
+            objection_detail: Free text describing any objection raised during the call, if any (e.g. "sensitive about rate, asked for lower EMI").
         """
         await self.backend.report_call_outcome(
             user_id=self.user_state.user_id,
             outcome="callback",
-            callback_time=callback_time,
+            callback_date=callback_date,
+            stage_03_context_note=stage_03_context_note,
+            objection_detail=objection_detail or None,
         )
-        self._end_call(f"Bilkul {self.user_state.name} ji — koi pressure nahi. Main {callback_time} ko call karungi. Apna khayal rakhen!")
+        self._end_call(f"Bilkul {self.user_state.name} ji — koi pressure nahi. Main {callback_date} ko call karungi. Apna khayal rakhen!")
         return ""
 
     @function_tool
@@ -241,24 +252,23 @@ class OfferPresentationAgent(LoanStageAgent):
         self,
         context: RunContext,  # noqa: ARG002
         rejection_reason: str,
-        any_objection_raised: bool = False,
+        stage_03_context_note: str,
         objection_detail: str = "",
     ) -> str:
         """
         Borrower clearly declined the offer. Accept gracefully, do not push.
-        Capture the reason for rejection.
 
         Args:
-            rejection_reason: One of: rate_too_high, amount_insufficient, changed_mind, existing_loan_concern, other
-            any_objection_raised: Whether the borrower raised any objection during the call.
-            objection_detail: Free text describing the objection if any.
+            rejection_reason: One of: rate_too_high, amount_insufficient, changed_mind, existing_loan_concern, other.
+            stage_03_context_note: Short note for the next agent — e.g. "firm decline, rate was the main issue" or "lost interest after learning processing fee".
+            objection_detail: Free text describing the objection if any (e.g. "compared with another NBFC offering lower rate").
         """
         await self.backend.report_call_outcome(
             user_id=self.user_state.user_id,
             outcome="rejected",
             rejection_reason=rejection_reason,
-            any_objection_raised=any_objection_raised,
-            objection_detail=objection_detail,
+            stage_03_context_note=stage_03_context_note,
+            objection_detail=objection_detail or None,
         )
         self._end_call(f"Theek hai {self.user_state.name} ji — koi baat nahi. Agar kabhi zaroorat ho toh mera number save kar lijiye. Apna khayal rakhen!")
         return ""
