@@ -19,6 +19,8 @@ logger = logging.getLogger("loan-agent")
 MAX_DURATION = {
     "cold_call": 180,
     "offer_presentation": 300,
+    "kyc_document_collection": 480,
+    "credit_assessment_update": 240,
 }
 
 server = AgentServer()
@@ -56,6 +58,13 @@ async def entrypoint(ctx: JobContext) -> None:
         borrower_need=metadata.get("borrower_need"),
         borrower_mood=metadata.get("borrower_mood"),
         loan_terms=metadata.get("loan_terms") or {},
+        stage_03_context_note=metadata.get("stage_03_context_note"),
+        assessment_outcome=metadata.get("assessment_outcome"),
+        approved_amount=metadata.get("approved_amount"),
+        rejection_reason=metadata.get("rejection_reason"),
+        next_step_if_rejected=metadata.get("next_step_if_rejected"),
+        missing_doc=metadata.get("missing_doc"),
+        doc_issue=metadata.get("doc_issue"),
     )
 
     stage = user_state.current_stage

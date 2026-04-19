@@ -33,6 +33,15 @@ class UserState:
     loan_terms: dict = field(default_factory=dict)
     # Expected keys: roi_annual_pct, tenure_months, emi_amount,
     #                total_repayable, processing_fee, net_disbursement
+    # Stage 03 — context note from Stage 02 agent
+    stage_03_context_note: Optional[str] = None
+    # Stage 04 — credit assessment result (populated by backend before call)
+    assessment_outcome: Optional[str] = None       # approved / rejected / more_info_needed
+    approved_amount: Optional[int] = None
+    rejection_reason: Optional[str] = None
+    next_step_if_rejected: Optional[str] = None
+    missing_doc: Optional[str] = None
+    doc_issue: Optional[str] = None
 
 
 class BackendClient:
@@ -80,6 +89,10 @@ class BackendClient:
         objection_detail: Optional[str] = None,
         any_objection_raised: bool = False,
         stage_03_context_note: Optional[str] = None,
+        pending_doc: Optional[str] = None,
+        followup_date: Optional[str] = None,
+        drop_reason: Optional[str] = None,
+        borrower_intent: Optional[str] = None,
     ) -> None:
         """Report the outcome of any stage call to the backend."""
         try:
@@ -99,6 +112,10 @@ class BackendClient:
                     "objection_detail": objection_detail,
                     "any_objection_raised": any_objection_raised,
                     "stage_03_context_note": stage_03_context_note,
+                    "pending_doc": pending_doc,
+                    "followup_date": followup_date,
+                    "drop_reason": drop_reason,
+                    "borrower_intent": borrower_intent,
                 },
                 timeout=aiohttp.ClientTimeout(total=5),
             )

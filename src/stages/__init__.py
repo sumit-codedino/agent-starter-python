@@ -15,10 +15,14 @@ def stage_to_agent(
 ) -> Optional[object]:
     from stages.s01_cold_call import ColdCallAgent
     from stages.s02_offer_presentation import OfferPresentationAgent
+    from stages.s03_kyc_document_collection import KYCDocumentCollectionAgent
+    from stages.s04_credit_assessment_update import CreditAssessmentUpdateAgent
 
     registry: dict[str, type] = {
         "cold_call": ColdCallAgent,
         "offer_presentation": OfferPresentationAgent,
+        "kyc_document_collection": KYCDocumentCollectionAgent,
+        "credit_assessment_update": CreditAssessmentUpdateAgent,
     }
 
     agent_class = registry.get(stage_id)
