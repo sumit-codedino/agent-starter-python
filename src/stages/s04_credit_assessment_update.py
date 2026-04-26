@@ -39,8 +39,13 @@ def _indian_amount(n: int) -> str:
     return " ".join(parts) if parts else "0"
 
 
-def _build_instructions(user_state: UserState) -> str:
-    amount = _indian_amount(user_state.loan_amount_interest)
+class _SafeDict(dict):
+    """Allow .format_map() on templates that have unknown placeholders — leave them as-is."""
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def _build_instructions(user_state: UserState, template: Optional[str] = None) -> str:
     approved_amount = _indian_amount(user_state.approved_amount) if user_state.approved_amount else "N/A"
     assessment = user_state.assessment_outcome or "approved"
     rejection_reason = user_state.rejection_reason or ""
@@ -51,6 +56,20 @@ def _build_instructions(user_state: UserState) -> str:
     t = user_state.loan_terms
     roi = t.get("roi_annual_pct", "N/A") if t else "N/A"
     tenure = t.get("tenure_months", "N/A") if t else "N/A"
+
+    if template is not None:
+        return template.format_map(_SafeDict(
+            name=user_state.name,
+            city=user_state.city,
+            assessment=assessment,
+            approved_amount=approved_amount,
+            rejection_reason=rejection_reason,
+            next_step=next_step,
+            roi=roi,
+            tenure=tenure,
+            missing_doc=missing_doc,
+            doc_issue=doc_issue,
+        ))
 
     return f"""
 Aap Priya hain, ZipCredit (RBI-registered NBFC) ki loan officer. Yeh credit assessment result delivery call hai. Trust established hai — dobara introduction mat karo.
@@ -148,11 +167,11 @@ class CreditAssessmentUpdateAgent(LoanStageAgent):
         self,
         user_state: UserState,
         backend: BackendClient,
-        template: Optional[str] = None,  # noqa: ARG002 — disabled for now
-        first_message: Optional[str] = None,  # noqa: ARG002 — disabled for now
+        template: Optional[str] = None,
+        first_message: Optional[str] = None,  # noqa: ARG002 — variants chosen by assessment_outcome
     ) -> None:
         super().__init__(
-            instructions=_build_instructions(user_state),
+            instructions=_build_instructions(user_state, template),
             user_state=user_state,
             backend=backend,
             stage_id=STAGE_ID,

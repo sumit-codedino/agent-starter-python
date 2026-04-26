@@ -62,8 +62,11 @@ def _build_context(user_state: UserState) -> dict:
     }
 
 
-def _build_instructions(user_state: UserState) -> str:
+def _build_instructions(user_state: UserState, template: Optional[str] = None) -> str:
     ctx = _build_context(user_state)
+
+    if template is not None:
+        return template.format_map(_SafeDict(**ctx))
 
     ref_label = ctx["ref_label"]
     amount = ctx["amount"]
@@ -180,21 +183,21 @@ class OfferPresentationAgent(LoanStageAgent):
         self,
         user_state: UserState,
         backend: BackendClient,
-        template: Optional[str] = None,  # noqa: ARG002 — disabled for now
-        first_message: Optional[str] = None,  # noqa: ARG002 — disabled for now
+        template: Optional[str] = None,
+        first_message: Optional[str] = None,
     ) -> None:
-        # Dynamic prompt disabled for Stage 02 — always use hardcoded default
         super().__init__(
-            instructions=_build_instructions(user_state),
+            instructions=_build_instructions(user_state, template),
             user_state=user_state,
             backend=backend,
             stage_id=STAGE_ID,
         )
-        self._first_message = None  # always use hardcoded FIRST_MESSAGE
+        self._first_message = first_message
 
     async def on_enter(self) -> None:
         need_line = f"{self.user_state.borrower_need} ke liye — " if self.user_state.borrower_need else ""
-        first_msg = FIRST_MESSAGE.format_map(_SafeDict(name=self.user_state.name, need_line=need_line))
+        tpl = self._first_message or FIRST_MESSAGE
+        first_msg = tpl.format_map(_SafeDict(name=self.user_state.name, need_line=need_line))
         await self.session.say(first_msg, allow_interruptions=True)
 
     # --- Outcome tools ---

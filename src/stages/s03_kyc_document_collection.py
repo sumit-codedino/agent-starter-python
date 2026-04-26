@@ -36,11 +36,27 @@ def _indian_amount(n: int) -> str:
     return " ".join(parts) if parts else "0"
 
 
-def _build_instructions(user_state: UserState) -> str:
+class _SafeDict(dict):
+    """Allow .format_map() on templates that have unknown placeholders — leave them as-is."""
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def _build_instructions(user_state: UserState, template: Optional[str] = None) -> str:
     ref_label = _REF_SOURCE_LABELS.get(user_state.ref_source, "ek platform")
     amount = _indian_amount(user_state.loan_amount_interest)
     need_text = user_state.borrower_need or "unki zaroorat"
     context_note = user_state.stage_03_context_note or "no prior context"
+
+    if template is not None:
+        return template.format_map(_SafeDict(
+            name=user_state.name,
+            city=user_state.city,
+            ref_label=ref_label,
+            amount=amount,
+            need_text=need_text,
+            context_note=context_note,
+        ))
 
     return f"""
 Aap Priya hain, ZipCredit (RBI-registered NBFC) ki loan officer. Yeh KYC document collection call hai — {user_state.name} ne offer accept kiya hai aur ab documents submit karne hain. Trust established hai — dobara loan terms mat batao.
@@ -143,18 +159,20 @@ class KYCDocumentCollectionAgent(LoanStageAgent):
         self,
         user_state: UserState,
         backend: BackendClient,
-        template: Optional[str] = None,  # noqa: ARG002 — disabled for now
-        first_message: Optional[str] = None,  # noqa: ARG002 — disabled for now
+        template: Optional[str] = None,
+        first_message: Optional[str] = None,
     ) -> None:
         super().__init__(
-            instructions=_build_instructions(user_state),
+            instructions=_build_instructions(user_state, template),
             user_state=user_state,
             backend=backend,
             stage_id=STAGE_ID,
         )
+        self._first_message = first_message
 
     async def on_enter(self) -> None:
-        first_msg = FIRST_MESSAGE.format(name=self.user_state.name)
+        tpl = self._first_message or FIRST_MESSAGE
+        first_msg = tpl.format_map(_SafeDict(name=self.user_state.name))
         await self.session.say(first_msg, allow_interruptions=True)
 
     # --- Outcome tools ---
